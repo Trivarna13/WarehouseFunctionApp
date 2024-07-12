@@ -25,22 +25,54 @@ namespace WarehouseFunctionApp
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequestData req,
             FunctionContext executionContext)
         {
-            var logger = executionContext.GetLogger("AddWarehouse");
+            ILogger logger = executionContext.GetLogger("AddWarehouse");
             logger.LogInformation("C# HTTP trigger function processed a request.");
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            var data = JsonConvert.DeserializeObject<Warehouse>(requestBody);
+            string requestBody;
+            try
+            {
+                requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                logger.LogInformation("Request body read successfully.");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Error reading request body: {ex.Message}");
+                return new BadRequestObjectResult("Failed to read request body");
+            }
 
+            Warehouse data;
+            try
+            {
+                data = JsonConvert.DeserializeObject<Warehouse>(requestBody);
+                logger.LogInformation("Request body deserialized successfully.");
+            }
+            catch (JsonException ex)
+            {
+                logger.LogError($"Error deserializing request body: {ex.Message}");
+                return new BadRequestObjectResult("Invalid request body");
+            }
 
             if (data == null || string.IsNullOrEmpty(data.Name) || data.FarmId <= 0)
             {
+                logger.LogWarning("Invalid input data.");
                 return new BadRequestObjectResult("Invalid input");
             }
 
+            logger.LogInformation($"Warehouse Data: Name = {data.Name}, FarmId = {data.FarmId}");
+
             // data.Id = 1;
 
-            _context.Warehouses.Add(data);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Warehouses.Add(data);
+                await _context.SaveChangesAsync();
+                logger.LogInformation("Warehouse data saved successfully.");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($"Error saving warehouse data: {ex.Message}");
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
 
             return new OkObjectResult(data);
         }
